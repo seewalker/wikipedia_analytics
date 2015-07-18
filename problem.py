@@ -30,7 +30,7 @@ class WikiProblem:
            self.instance, self.checkSamples = instance, checkSamples
            #this is the standard ordering of the categories.
            self.exp_categories = [category for category in self.instance['experimental']]
-           self.control_categories = [category for category in self.instance['control']] + ['random'] 
+           self.control_categories = [category for category in self.instance['control']] + ['random']
            self.engines = ['google','bing','yahoo','wikipedia']
            self.attributes = ['engine/engines','engines/links'] #the things I know to look at.
            self.category_colors = {}
@@ -52,8 +52,9 @@ class WikiProblem:
         Setup database connection and toss out titles in the samples that are not in the database.
         Sets colors corresponding to categories, sets self.dbsize.
         '''
-        self.conn = psycopg2.connect(dbname="akseewa11_db", user="akseewa11", 
-                                     host="hopper.cluster.earlham.edu", password="")
+        print("Preparing problem instance.")
+        self.conn = psycopg2.connect(dbname="wiki", user="shalom", 
+                                     host="localhost", password="")
         self.cursor = self.conn.cursor()
         self.cursor.execute("SELECT count(*) FROM wikiThresh")
         self.dbsize = self.cursor.fetchall()[0][0]
@@ -69,7 +70,7 @@ class WikiProblem:
                                                   WHERE title = '{}' '''.format(title))
                            nonexistentTitle = self.cursor.fetchall() == []
                            if (nonexistentTitle):
-                               print("{} does not exist\n".format(title))
+                               print("{} does not exist".format(title))
                                removals.append(title)
                        except psycopg2.DatabaseError as e:
                            print("Failed to read table")
@@ -80,6 +81,7 @@ class WikiProblem:
         self.category_colors['random'] = '#ff0000'
         self.all_categories = self.exp_categories + self.control_categories
     def churn(self):
+        print("Filling tables with query results")
         #experimental and control tables ought to be stored separately.
         self.experiment = pd.DataFrame(data=self.array_of_dicts((len(self.attributes), len(self.exp_categories))), columns=self.attributes, index=self.exp_categories)
         self.control = pd.DataFrame(data=self.array_of_dicts((len(self.attributes), len(self.control_categories))), columns=self.attributes, index=self.control_categories)
@@ -120,6 +122,7 @@ class WikiProblem:
         '''
         # What other kinds of attributes would be useful to have? Some quantitative measure of clustering of experimental vs control categories.
         # This is something to return to when I know more about statistics.
+        print("Reducing the query tables.")
         attributes = ['labels', 'values', 'fit', 'experimental?']
         self.engine_panel = pd.Panel({engine : pd.DataFrame(index=self.all_categories, columns=attributes) for engine in self.engines})
         for engine in self.engines:
@@ -199,6 +202,7 @@ class WikiProblem:
                 label = lookup(event.ydata)
                 if label_index: print(label)
                 else: print("lookup failed.")
+        print("Beginning the plotting process.")
         #plotting paramters:
         engine_colors = {'google' : 'g', 'bing' : 'b', 'yahoo' : 'y', 'wikipedia' : 'r'}
         tickwidth = 0.15
@@ -320,199 +324,28 @@ class WikiProblem:
             return None
     def array_of_dicts(self,shape):
         return [ [{} for i in range(shape[0])] for j in range(shape[1])]
-microsoftI = { 
-   'name' : "Microsoft_Bing", 
-   'experimental' : 
-   { 'microsoft' : set([
-      "Microsoft_Windows",
-      "Microsoft_Excel",
-      "Microsoft_PowerPoint",
-      "Microsoft_Office",
-      "Microsoft_Silverlight",
-      "Windows_Media_Player",
-      "MSN",
-      "Microsoft_Visual_Studio",
-      "Microsoft_SQL_Server",
-      "Microsoft_Developer_Network",
-      "Microsoft_Exchange_Server",
-      "Microsoft_TechNet",
-      "Outlook.com",
-      "Azure_Services_Platform",
-      "Windows_98",
-      "Windows_95",
-      "MS-DOS",
-      "Windows_Vista",
-      "Windows_XP",
-      "Windows_7",
-      "Windows_8",
-      "Windows_NT",
-      "Microsoft_Outlook",
-      "Windows_API",
-      "Bill_Gates",
-      "Windows_Live",
-      "OneDrive",
-      "Microsoft",
-      "Bing",
-      "Microsoft_Surface",
-      "Kinect",
-      "Xbox",
-      "Xbox_360"])
-   },
-   'control' : {
-      "technical" : set(["Linux",
-      "FreeBSD",
-      "OpenBSD",
-      "Operating_system",
-      "Matplotlib",
-      "MATLAB",
-      "OS_X",
-      "Intel",
-      "Compiler",
-      "TCP",
-      "Http"])
-   }
-}
-clickbaitI = {
-   'name' : 'Clickbait',
-   'experimental' : {
-      'danger' : set([
-                  "HIV",
-                  "AIDS",
-                  "Cancer",
-                  "Syphillis",
-                  "September_11_attacks",
-                  "Myocardial_infarction",
-                  "Terrorist_attack",
-                  "Columbine_High_School_massacre",
-                  "Sandy_Hook_Elementary_School_shooting"
-                 ]),
-      'sexual' : set([
-                   "Sex_positions",
-                   "Sexual_penetration",
-                   "Blow_job",
-                   "Cunnilingus",
-                   "Balloon_fetish",
-                   "Casual_sex",
-                   "Ejaculation",
-                   "Fuck",
-                   "Hickey",
-                   "Mechanics_of_sex",
-                   "Pornography",
-                   "Prostitution",
-                   "Sexting",
-                   "cock",
-                   "Vibrator_(sex_toy)",
-                   "Sexual_intercourse",
-                   "Baseball_metaphors_for_sex",
-                   "Sex_position",
-                   "Masturbation",
-                   "Doggy_style",
-                   "Orgasm_control",
-                   "Dildo",
-                   "Strap-on_dildo",
-                   "Clitorus",
-                   "Handjob",
-                   "Missionary_position",
-                   "Oral_sex",
-                   "Sexual_network",
-                   "Sexual_revolution",
-                   "Sexual_roleplay",
-                   "Strip_poker",
-                   "Wax_play",
-                   "Anal_sex",
-                   "Condom",
-                 ]),
-      'political' : set([
-                    "Al-Qaeda",
-                    "Patriot_Act",
-                    "Roe_v._Wade",
-                    "George_W._Bush",
-                    "Gay_marriage",
-                    "Socialism",
-                    "World_government",
-                    "Affirmative_action",
-                    "Pro-life",
-                    "Zionism",
-                    "Arab-Israeli_conflict",
-                    "American_Civil_Liberties_Union",
-                    "Abortion",
-                    "Legalization_of_drugs",
-                    "Sexual_orientation_and_the_United_States_military",
-                    "Iraq_War",
-                    "Barack_Obama",
-                    "Islamic_State_of_Iraq_and_the_Levant"
-                    ])
-   },
-   'control' : {
-       'scientific-jargon' : set([ #the idea is this is not at all clickbait.
-          "BLAST", 
-          "Primary_structure",
-          "Planck_constant",
-          "Electronvolt",
-          "Atomic_mass_unit",
-          "Adiabatic_invariant",
-          "Ultraviolet_catastrophe",
-          "Rydberg_constant",
-          "Fine-structure_constant",
-          "Vacuum_permittivity",
-          "Adenine",
-          "Farad",
-          "Adenosine_triphosphate",
-          "Tautomer",
-          "Glutamine",
-          "Ribose"
-       ])
-   }
-}
-nounTypeI = {
-   'name' : 'noun types',
-   'experimental' : {
-       'people' : set([
-          
-       ]),
-       'concepts' : set([
 
-       ]),
-       'events' : set([
+# other helper functions
+def most_like(phrase,thresh=0.3):
+   conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
+   lower, upper = phrase[0].lower(), phrase[0].upper()
+   hits = pd.read_sql('''SELECT similarity('{0}',filtered.title), filtered.title
+                         FROM (SELECT DISTINCT title FROM wikithresh WHERE (title LIKE '{1}%') OR (title LIKE '{2}%')) filtered
+                         WHERE similarity('{0}',filtered.title) > {3}
+                         ORDER BY similarity('{0}',filtered.title) DESC
+                      '''.format(phrase, lower, upper, thresh), conn)
+   print(hits.to_string())
 
-       ])
-   },
-   'control' : { }
-}
-def popSample (num_samples):
-   conn = psycopg2.connect(dbname="akseewa11_db", user="akseewa11", 
-                           host="hopper.cluster.earlham.edu", password="")
-   cursor = conn.cursor()
-   # get a big random sampling, ordered by sum of grouped number of views. select aggregated view values evenly spaced
-   # (medianwise), throughout the big random sample. From that list of n, start selecting where grouped sum is between values.
-   sample = pd.read_sql('''SELECT sum(n) FROM wikiThresh
-                           WHERE random() < {}
-                           GROUP BY title
-                        '''.format(), conn)
-   epsilon = 0.0001 #small value so that range is inclusive.
-   ns = [sample[int(k * sample.size)] for k in range(0,1 + epsilon,1.0/num_samples)]
-   return [ set(pd.read_sql('''SELECT DISTINCT title FROM wikiThresh
-                               WHERE random() < {}
-                               GROUP BY title
-                               HAVING count(n) < {} AND count(n) > {}
-                            '''.format(ns[i+1], lower_bound), conn).values) #ns[i+1] is upper bound.
-            for i,lower_bound in enumerate(ns[0:-1])]
-
-#sample = popSample(5)
-#popularityI = { #do people click towards more obscure or less obscure things?
-#   'name' : 'popularity flow',
-#   'experimental' : {
-#      '0 quantile' : sample[0],
-#      '20 quantile' : sample[1],
-#      '40 quantile' : sample[2],
-#      '60 quantile' : sample[3],
-#      '80 quantile' : sample[4],
-#   }
-#}
-
-msP = WikiProblem(microsoftI)
-msP.plot()
-cbP = WikiProblem(clickbaitI)
-cbP.plot()
-#ntP = WikiProblem(nounTypeI)
-#ntP.plot()
+# what is the sql way to talk about a certain row within an aggregate section? 
+#      I think I have it.
+def maximal(takeAmount=100):
+   " "
+   conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
+   def maxes(referer):
+       return pd.read_sql('''SELECT wOut.title
+                             FROM wikiThresh wOut
+                             GROUP BY wOut.title
+                             ORDER BY (SELECT wIn.n / sum(wOut.n) FROM wikithresh wIn WHERE (wIn.title = wOut.title) AND (wIn.referer = '{0}')) DESC
+                             LIMIT {1}
+                          '''.format(referer,takeAmount), conn)
+   return {referer : maxes(referer) for referer in ('other-google','other-bing','other-yahoo','other-wikipedia')}

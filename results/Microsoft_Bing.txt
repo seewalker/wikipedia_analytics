@@ -1,0 +1,7 @@
+\begin{tabular}{lll}
+\toprule
+{} &                                     engine/engines &                                      engines/links \\
+\midrule
+microsoft &  \{u'Microsoft\_Outlook': \{u'bing': 0.05933571393... &  \{u'Microsoft\_Outlook': 2.44358116185, u'Micros... \\
+\bottomrule
+\end{tabular}

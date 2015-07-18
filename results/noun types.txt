@@ -1,0 +1,9 @@
+\begin{tabular}{lll}
+\toprule
+{} &                                     engine/engines &                  engines/links \\
+\midrule
+concepts &                                                 \{\} &                             \{\} \\
+events   &  \{u'Christmas': \{u'bing': 0.042735329663, u'goo... &  \{u'Christmas': 2.12513376614\} \\
+people   &  \{u'Cleopatra': \{u'bing': 0.0483840786976, u'go... &  \{u'Cleopatra': 2.15887580794\} \\
+\bottomrule
+\end{tabular}
