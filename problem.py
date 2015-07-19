@@ -9,13 +9,12 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 
 class WikiProblem:
-    ''' 
+    '''
     An instance is of the form:
        { 'experimental' : { category0 : set( <insert_sample> ), ... categoryN : set( <insert_sample> )}
-         'control' : { category0 : set( <insert_sample> ), ... categoryM : set( <insert_sample> )} }         
+         'control' : { category0 : set( <insert_sample> ), ... categoryM : set( <insert_sample> )} }
     All experimental categories which are not random are thought to be related somehow.
     All control categories are intended catch an illusury correlation.
-
     Notes on the Data:
        'wikipedia' as an engine means a use of the wikipedia search bar.
        The rationale for having a threshold is that low-view pages will have noisy proportions
@@ -53,7 +52,7 @@ class WikiProblem:
         Sets colors corresponding to categories, sets self.dbsize.
         '''
         print("Preparing problem instance.")
-        self.conn = psycopg2.connect(dbname="wiki", user="shalom", 
+        self.conn = psycopg2.connect(dbname="wiki", user="shalom",
                                      host="localhost", password="")
         self.cursor = self.conn.cursor()
         self.cursor.execute("SELECT count(*) FROM wikiThresh")
@@ -218,6 +217,8 @@ class WikiProblem:
         plt.subplots_adjust(bottom=0.15)
         plt.style.use('ggplot')
         engine_coherence_axes[0].set_ylabel('proportion of all searches')
+        # If I did not already write this, the reasonable way to do this would have been seaborn's 'stripplot',
+        # rather than manually hacking matplotlib.
         for i, engine in enumerate(self.engines):
             engine_coherence_axes[i].set_title(engine)
             engine_coherence_axes[i].set_xticks(range(0,len(self.all_categories)))
@@ -336,16 +337,50 @@ def most_like(phrase,thresh=0.3):
                       '''.format(phrase, lower, upper, thresh), conn)
    print(hits.to_string())
 
-# what is the sql way to talk about a certain row within an aggregate section? 
-#      I think I have it.
-def maximal(takeAmount=100):
-   " "
+# not verified to work.
+def dbshape(conn):
+    cursor = conn.cursor()
+    cursor.execute("SELECT count(*) FROM wikiThresh")
+    num_rows = self.cursor.fetchall()[0][0]
+    cursor.execute("SELECT count(DISTINCT title) FROM wikithresh")
+    num_titles = self.cursor.fetchall()[0][0]
+    return (num_rows,num_titles)
+
+def proportion(referer):
+    return "(SELECT wIn.n :: float / sum(wOut.n) FROM wikithresh wIn WHERE (wIn.title = wOut.title) AND (wIn.referer = '{}'))".format(referer)
+# this is interesting just to see what is most done.
+def referer_maximal(takeAmount=100):
+   "Retrieves the pages which are most often found via certain referers. Research question - do these have anything in common?"
    conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
    def maxes(referer):
-       return pd.read_sql('''SELECT wOut.title
-                             FROM wikiThresh wOut
-                             GROUP BY wOut.title
-                             ORDER BY (SELECT wIn.n / sum(wOut.n) FROM wikithresh wIn WHERE (wIn.title = wOut.title) AND (wIn.referer = '{0}')) DESC
-                             LIMIT {1}
-                          '''.format(referer,takeAmount), conn)
+       return pd.read_sql(''' SELECT wOut.title, {0}
+                              FROM wikiThresh wOut
+                              GROUP BY wOut.title
+                              ORDER BY {0} DESC
+                              LIMIT {1}
+                          '''.format(proportion(referer),takeAmount), conn)
    return {referer : maxes(referer) for referer in ('other-google','other-bing','other-yahoo','other-wikipedia')}
+
+def referer_distribution(slice_proportion=0.01):
+   "Shows the distribution of proportion of prevalence of referers."
+   conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
+   def distr(referer):
+        # Does seaborn provide a way to make histograms where you can click on the bins to see what members there are?
+        return pd.read_sql('''SELECT {0}
+                              FROM wikiThresh wOut
+                              WHERE random() < {1}
+                              GROUP BY wOut.title
+                              ORDER BY {0} DESC
+        '''.format(proportion(referer),slice_proportion), conn)
+    return {referer : distr(referer) for referer in ('other-google','other-bing','other-yahoo','other-wikipedia')}
+
+#Is there a name for something like a histogram, but which has constant count height and variable 'width'?
+#if so, I could use that as an alternative way to pose the popularity instance.
+# just plot a histogram with the data reversed; what do I want to do this to?
+#       number of net views is in a bin, the width corresponds to views per page boundaries.
+#       
+def data_characteristics( ):
+    m = referer_maximal(800)
+    d = referer_distribution( )
+    m.to_string
+    plt.hist
