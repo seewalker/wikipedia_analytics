@@ -7,6 +7,12 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn
 
+# Really, what is the best way for me to get scalar field values?
+#   if I use a panel, I will have one extra thing to index by, which can be title. This will allow
+#   me to use title as a categorical label in seaborn plotting commands, which is what I want to do.
+#   if I go this route and it really has to be uniformly tabular (all titles available to all categories),
+#   I'll have to have missing values. I should ask on stack overflow whether I should do this or whether
+#   there is another recommended approach.
 
 class WikiProblem:
     '''
@@ -36,8 +42,17 @@ class WikiProblem:
            self.attributes = {'prop-' + eng for eng in self.engines} | {'engines/links'}
            self.random_size = 800
            self.prepare_instance()
-           # pretty sure this is actually still what I want.
-           self.table = pd.DataFrame(data=self.array_of_dicts((len(self.categories), len(self.attributes))), columns=self.categories, index=self.attributes)
+           # This two are necessary for making the data properly tabular.
+           #self.exp_titles = functools.reduce(lambda x,y: x | y, self.instance['experimental'].values())
+           #self.control_titles = functools.reduce(lambda x,y: x | y, self.instance['control'].values())
+           exps = { category : pd.DataFrame(data=np.ndarray((len(self.instance['experimental'][category]),len(self.attributes))),
+                                            index=self.instance['experimental'][category],
+                                            columns=self.attributes) for category in self.exp_categories}
+           ctrls = { category : pd.DataFrame(data=np.ndarray((len(self.instance['control'][category]),len(self.attributes))),
+                                            index=self.instance['control'][category],
+                                            columns=self.attributes) for category in self.control_categories}
+           self.experimental = pd.Panel(exps)
+           self.control = pd.Panel(ctrls)
            self.churn()
            self.stats()
     def __del__ (self):
@@ -56,8 +71,9 @@ class WikiProblem:
         print("Preparing problem instance.")
         self.conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
         self.cursor = self.conn.cursor()
-        self.cursor.execute("SELECT count(*) FROM wikiThresh")
-        self.dbsize = self.cursor.fetchall()[0][0]
+        #self.cursor.execute("SELECT count(*) FROM wikiThresh")
+        #self.dbsize = self.cursor.fetchall()[0][0]
+        self.dbsize = 16670685  # the above takes awhile, so using this while in development.
         if self.checkSamples:
            for t in ('experimental','control'):
                for category in self.instance[t].keys():
@@ -74,23 +90,22 @@ class WikiProblem:
                            print("Failed to read table")
                            return None
                    for title in removals: self.instance[t][category].remove(title)
+        assert(self.random_size < self.dbsize) #otherwise, next line will fail. This should not be true anyway.
+        self.instance['control']['random'] = self.randomSample()
     def churn(self):
         print("Filling tables with query results")
-        def store(category,title):
+        def store(category,title,experimental):
             props = self.engineByEngine(self.byTitle(title))
+            if experimental: table = self.experimental
+            else: table = self.control
             for eng in self.engines:
-                self.table.ix['prop-' + eng,category][title] = props[eng]
-            self.table.ix['engines/links',category][title] = self.enginesVsLinks(self.byTitle(title))
-        for category in self.instance['experimental']:
-            for title in self.instance['experimental'][category]:
-                store(category,title)
-        for category in self.instance['control']:
-            for title in self.instance['control'][category]: #the instance doe not explicitly include random.
-                store(category,title)
-        assert(self.random_size < self.dbsize) #otherwise, next line will fail. This should not be true anyway.
-        for title in self.randomSample()['title'].values:
-            store('random',title)
-        self.table.to_latex(buf='results/{}.txt'.format(self.instance['name']))
+                table.ix['prop-' + eng,category][title] = props[eng]
+            table.ix['engines/links',category][title] = self.enginesVsLinks(self.byTitle(title))
+        for t in ('experimental','control'):
+            for category in self.instance[t]:
+                for title in self.instance[t][category]:
+                    store(category,title,t == 'experimental')
+        self.experimental.to_latex(buf='results/{}.txt'.format(self.instance['name']))
     def agg(self):
         pass
     def stats(self):
@@ -121,20 +136,19 @@ class WikiProblem:
         print("Beginning the plotting process.")
         #I can declare my subplots manually matplotlib style, and tell seaborn to target them via the 'ax' keyword argument to the plotting functions.
         #however, the architecture I might want to switch to should maybe have
-         def flush(pltfn):
-             def wrap():
-                 pltfn()
-                 plt.savefig("results/{}".format(self.instance['name']))
-                 plt.show()
-             return wrap
+        def flush(pltfn):
+            def wrap():
+                pltfn()
+                plt.savefig("results/{}".format(self.instance['name']))
+                plt.show()
+            return wrap
         # #There is a notion of 'figure' for each of these.
-         @flush
-         def plot_density():
-             fig, (ax1,ax2,ax3) = plt.subplots(3)
-             sns.stripplot(data=, x= , y=, ax=ax1)
-             sns.violinplot(, ax=ax2)
-             sns.boxplot(, ax=ax3)
-             pass
+        # @flush
+        # def plot_density():
+        #     fig, (ax1,ax2,ax3) = plt.subplots(3)
+        #     sns.stripplot(data=, x="category" , y=, ax=ax1)
+        #     sns.violinplot(, ax=ax2)
+        #     sns.boxplot(, ax=ax3)
         # @flush
         # def plot_each_cat(): 
         #     # What about a pairplot for each experimental/control pair? What a pair plot does is 
@@ -188,15 +202,13 @@ class WikiProblem:
         try:
             # This selects random rows from the database only for titles where the 'n' value for search engine referer rows are all non-zero.
             # It turns out we don't get 0 values, we get simply no entry for other-bing.
-            return pd.read_sql(sql='''SELECT title FROM wikiThresh w0
-                                      ORDER BY RANDOM()
-                                      LIMIT {}
-                                   '''.format(self.random_size), con=self.conn)
+            rs = pd.read_sql(sql='''SELECT title FROM wikiThresh w0
+                                    ORDER BY RANDOM()
+                                    LIMIT {}'''.format(self.random_size), con=self.conn)
+            return set(rs['title'].values)
         except psycopg2.DatabaseError as e:
-            print("Failed to read table")
+            print("Failed to read random sample from table: " ++ repr(e))
             return None
-    def array_of_dicts(self,shape):
-        return [ [{} for i in range(shape[0])] for j in range(shape[1])]
 
 # plans
 # Rethinking Visualization:

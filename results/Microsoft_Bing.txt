@@ -1,10 +1,11 @@
-\begin{tabular}{llllll}
+\begin{tabular}{lllll}
 \toprule
-{} &                                          prop-bing &                                         prop-yahoo &                                        prop-google &                                     prop-wikipedia &                                      engines/links \\
+{} &                                          companies &                                          technical &                                          microsoft &                                             random \\
 \midrule
-technical &  \{'Matplotlib': 0.022869022869, 'Intel': 0.0336... &  \{'Matplotlib': 0.0, 'Intel': 0.0194025166205, ... &  \{'Matplotlib': 0.85446985447, 'Intel': 0.85234... &  \{'Matplotlib': 0.122661122661, 'Intel': 0.0945... &  \{'Matplotlib': 0.472495088409, 'Intel': 0.6183... \\
-companies &  \{'Walmart': 0.0470668920859, 'Netflix': 0.0671... &  \{'Walmart': 0.0470509426138, 'Netflix': 0.0984... &  \{'Walmart': 0.840505279275, 'Netflix': 0.77221... &  \{'Walmart': 0.0653768860251, 'Netflix': 0.0622... &  \{'Walmart': 0.618000453412, 'Netflix': 0.66972... \\
-microsoft &  \{'Windows\_Media\_Player': 0.0496965720846, 'Win... &  \{'Windows\_Media\_Player': 0.0237821879613, 'Win... &  \{'Windows\_Media\_Player': 0.834180744629, 'Wind... &  \{'Windows\_Media\_Player': 0.0923404953256, 'Win... &  \{'Windows\_Media\_Player': 0.582497372695, 'Wind... \\
-random    &  \{'Urinary\_tract\_infection': 0.086641472801, 'C... &  \{'Urinary\_tract\_infection': 0.0541552543078, '... &  \{'Urinary\_tract\_infection': 0.790763790174, 'C... &  \{'Urinary\_tract\_infection': 0.0684394827168, '... &  \{'Urinary\_tract\_infection': 0.67250343911, 'Ch... \\
+prop-bing      &  \{'Apple': 0.0636376267889, 'Walmart': 0.047066... &  \{'Linux': 0.0318276804372, 'TCP': 0.0832497492... &  \{'Microsoft\_Windows': 0.0441554103426, 'MS-DOS... &  \{'Federal\_Police\_(Germany)': 0.0337552742616, ... \\
+prop-google    &  \{'Apple': 0.748043166134, 'Walmart': 0.8405052... &  \{'Linux': 0.891737662755, 'TCP': 0.27081243731... &  \{'Microsoft\_Windows': 0.846802647237, 'MS-DOS'... &  \{'Federal\_Police\_(Germany)': 0.783755274262, '... \\
+prop-yahoo     &  \{'Apple': 0.0380714186467, 'Walmart': 0.047050... &  \{'Linux': 0.0197602590305, 'TCP': 0.0752256770... &  \{'Microsoft\_Windows': 0.0186016409528, 'MS-DOS... &  \{'Federal\_Police\_(Germany)': 0.0274261603376, ... \\
+engines/links  &  \{'Apple': 0.58357997162, 'Walmart': 0.61800045... &  \{'Linux': 0.690717888526, 'TCP': 0.29628528974... &  \{'Microsoft\_Windows': 0.429314069068, 'MS-DOS'... &  \{'Federal\_Police\_(Germany)': 0.365740740741, '... \\
+prop-wikipedia &  \{'Apple': 0.15024778843, 'Walmart': 0.06537688... &  \{'Linux': 0.0566743977771, 'TCP': 0.5707121364... &  \{'Microsoft\_Windows': 0.0904403014677, 'MS-DOS... &  \{'Federal\_Police\_(Germany)': 0.155063291139, '... \\
 \bottomrule
 \end{tabular}
