@@ -1,7 +1,7 @@
 inst = {
    'name' : 'noun types',
    'experimental' : {
-       'people' : set([
+       'people' : {
             "Alexander_The_Great.",
             "David_Foster_Wallace",
             "Sylvia_Plath",
@@ -36,9 +36,8 @@ inst = {
             "Freeman_Dyson",
             "Freddie_Mercury",
             "Roger_Williams",
-            "Jorge_Louis Borges"
-]),
-       'concepts' : set([
+            "Jorge_Louis Borges"},
+       'concepts' : {
             "determinism",
             "democracy",
             "paternalism",
@@ -53,8 +52,8 @@ inst = {
             "Postmodernism",
             "Exclusive_or",
             "Equal_opportunity"
-       ]),
-       'objects' : set([
+            },
+       'objects' : {
             "Samosa",
             "Nut_(hardware)",
             "Egg_white",
@@ -80,10 +79,9 @@ inst = {
             "Mobile_phone" , 
             "Calculator" , 
             "Bass_guitar" , 
-            "Bicycle" , 
-            
-       ])
-       'events' : set([
+            "Bicycle"
+            }, 
+       'events' : {
             "alamo",
             "stanley cup",
             "world series",
@@ -110,8 +108,8 @@ inst = {
             "Boston_Early_Music_Festival" , 
             "International_Storytelling_Championship" , 
             "National_Storytelling_Festival" , 
-            "StorySLAM" ,
-       ])
+            "StorySLAM"
+            }
    },
    'control' : {
  

@@ -1,7 +1,7 @@
 inst = {
    'name' : 'Clickbait',
    'experimental' : {
-      'danger' : set([
+      'danger' : {
                   "HIV",
                   "AIDS",
                   "Cancer",
@@ -66,11 +66,9 @@ inst = {
                   "Neurotoxin" , 
                   "Cardiotoxicity" , 
                   "Land_mine" , 
-                  "Improvised_explosive_device" , 
-                
-
-                 ]),
-      'sexual' : set([
+                  "Improvised_explosive_device"
+                 },
+      'sexual' : {
                    "Sex_positions",
                    "Sexual_penetration",
                    "Blow_job",
@@ -124,8 +122,8 @@ inst = {
                    "Group_sex" ,
                    "Threesome" ,
                    "Circle_jerk_(sexual_practice)" 
-                 ]),
-      'political' : set([
+                 },
+      'political' : {
                     "Al-Qaeda",
                     "Patriot_Act",
                     "Roe_v._Wade",
@@ -223,12 +221,9 @@ inst = {
                     "Green_Party_of_the_United_States" , 
                     "Justice_Party_(United_States)" , 
                     "Welfare_state" , 
-                    "Free_rider_problem" , 
-                
-
-                
-                    ]),
-      'drugs' : set([
+                    "Free_rider_problem"
+                    },
+      'drugs' : {
                     "Cocaine",
                     "Marijuana",
                     "Heroine",
@@ -291,15 +286,11 @@ inst = {
                     "Codeine" , 
                     "Ibogaine" , 
                     "Contact_high" , 
-                    "Zombie_dust_(narcotic)" , 
-                    
-
-
-
-          ])
+                    "Zombie_dust_(narcotic)"
+      }
    },
    'control' : {
-       'scientific-jargon' : set([ #the idea is this is not at all clickbait.
+       'scientific-jargon' : {
           "BLAST",
           "Primary_structure",
           "Planck_constant",
@@ -353,8 +344,6 @@ inst = {
           "Phonon" , 
           "Quasiparticle" , 
           "Chionodoxa" ,
-          
-
-       ])
+       }
    }
 }
