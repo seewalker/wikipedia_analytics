@@ -5,7 +5,9 @@ import numpy as np
 import math
 import pickle
 import matplotlib.pyplot as plt
-import seaborn
+import seaborn as sns
+import scipy
+import subprocess
 
 # Really, what is the best way for me to get scalar field values?
 #   if I use a panel, I will have one extra thing to index by, which can be title. This will allow
@@ -51,6 +53,8 @@ class WikiProblem:
            ctrls = { category : pd.DataFrame(data=np.ndarray((len(self.instance['control'][category]),len(self.attributes))),
                                             index=self.instance['control'][category],
                                             columns=self.attributes) for category in self.control_categories}
+           subprocess.call(["rm","-rf","results/{}".format(self.instance['name'])])
+           subprocess.call(["mkdir","results/{}".format(self.instance['name'])])
            self.experimental = pd.Panel(exps)
            self.control = pd.Panel(ctrls)
            self.churn()
@@ -61,8 +65,10 @@ class WikiProblem:
         self.conn.close()
         del(self.conn)
         del(self.cursor) # delete these because they may carry password info that I don't want to pickle.
-        # is this working?
-        pickle.dump(self, open('results/{}'.format(self.instance['name']), 'wb'))
+        name = self.instance['name']
+        pickle.dump(self, open('results/{}/self.pickel'.format(name), 'wb'))
+        self.experimental.to_hdf('results/{}/experimental.hdf'.format(name))
+        self.experimental.to_pickle('results/{}/experimental.pickel'.format(name))
     def prepare_instance(self):
         '''
         Setup database connection and toss out titles in the samples that are not in the database.
@@ -99,13 +105,12 @@ class WikiProblem:
             if experimental: table = self.experimental
             else: table = self.control
             for eng in self.engines:
-                table.ix['prop-' + eng,category][title] = props[eng]
-            table.ix['engines/links',category][title] = self.enginesVsLinks(self.byTitle(title))
+                table[category]['prop-' + eng][title] = props[eng]
+            table.ix[category]['engines/links'][title] = self.enginesVsLinks(self.byTitle(title))
         for t in ('experimental','control'):
             for category in self.instance[t]:
                 for title in self.instance[t][category]:
                     store(category,title,t == 'experimental')
-        self.experimental.to_latex(buf='results/{}.txt'.format(self.instance['name']))
     def agg(self):
         pass
     def stats(self):
@@ -117,10 +122,21 @@ class WikiProblem:
             overall usage of engines versus links, aggregated over all categories in the experimental group.
         What single numbers would say interesting things?
         '''
-        pass
-    def control_view(self):
-        " "
-        return self.table[list(self.control_categories)]
+        # The notion of correlation is purposefully not defined because of the different titles in each.
+        # I think I need to do a 
+        for (name,df) in self.experimental.iteritems():
+            print("{}\n{}".format(name,str(df.describe())))
+            corrmat = pd.DataFrame(columns=self.attributes, index=[name for (name,vals) in self.control.iteritems()])
+            print("The first item in these tuples represents: ")
+            print("The second item in these tuples represents: ")
+            for (featurename,feature) in df.iteritems():
+                for (cname,ctrl) in self.control.iteritems():
+                    size = min(len(feature.dropna()),len(ctrl[featurename].dropna()))
+                    featurecol, ctrlcol = (feature.dropna())[0:size], (ctrl[featurename].dropna())[0:size]
+                    # does this pearson coefficient assume minus-mean form? no, what I'm writing here is valid.
+                    corrmat[featurename][cname] = scipy.stats.pearsonr(featurecol.values,ctrlcol.values)
+            print(corrmat)
+        #now, we add covariance between the control groups (including random). we expect covariance with random to be about zero.
     def cluster(self,n=2):
         '''
         Many instances may have in mind a binary expectation. This shows whether the data supports that estimation.
@@ -129,42 +145,81 @@ class WikiProblem:
         '''
         pass
     def discovery(self,categories=None):
-        ''' The idea is, after discovery, 
+        ''' The idea is, after discovery, I will do more specific plots to hone in on what this suggests is interesting data.
         '''
         # Now, I've kind of thought through this a bit. I can play with this interactively,
         # and add stuff here as I go.
-        print("Beginning the plotting process.")
-        #I can declare my subplots manually matplotlib style, and tell seaborn to target them via the 'ax' keyword argument to the plotting functions.
-        #however, the architecture I might want to switch to should maybe have
-        def flush(pltfn):
-            def wrap():
-                pltfn()
-                plt.savefig("results/{}".format(self.instance['name']))
-                plt.show()
-            return wrap
-        # #There is a notion of 'figure' for each of these.
-        # @flush
-        # def plot_density():
-        #     fig, (ax1,ax2,ax3) = plt.subplots(3)
-        #     sns.stripplot(data=, x="category" , y=, ax=ax1)
-        #     sns.violinplot(, ax=ax2)
-        #     sns.boxplot(, ax=ax3)
-        # @flush
-        # def plot_each_cat(): 
-        #     # What about a pairplot for each experimental/control pair? What a pair plot does is 
-        #     # I need to prepare special dataframes here which can be inserted what's expected into these plotting functions.
-        #     for cat in categories:
-        #         engine_dat = 
-                # engines = sns.FacetGrid(engine_dat, row="engine", col="control")
-                # # can I map a jointplot? 
-                # engines.map(sns.distplot( ))
-            # link_dat = 
-            # links = sns.FacetGrid(link_dat, row="category", col="control")
-            # links.map(sns.distplot( ))
-        # @flush
-        # def plot_agg():
-            # engine_dat  = 
-            # engines = sns.FacetGrid 
+        figuresize = (36,16) #units - inches
+        def flush(plottype):
+            def inner(plotfn):
+                def wrap():
+                    plotfn()
+                    plt.savefig("results/{}/{}".format(self.instance['name'], plottype))
+                    plt.show()
+                return wrap
+            return inner
+         #There is a notion of 'figure' for each of these.
+        print("Plotting density")
+        # removing the random column and doing a 'split' will go a long way with making the violins bigger.
+        @flush("raw_density")
+        def raw_density():
+            "Here, I am working with so-called 'wide-form' data."
+            fig, axes = plt.subplots(nrows=len(self.exp_categories), ncols=len(self.control_categories)+1, sharey=True)
+            fig.set_size_inches(figuresize)
+            fig.suptitle("Raw Proportion Values")
+            # Things I need - better styling.
+            if len(self.exp_categories) == 1:
+                axes = [axes]
+            for (i,ecat) in enumerate(self.exp_categories):
+                axes[i][0].set_title(ecat)
+                sns.violinplot(data=self.experimental[ecat], ax=axes[i][0], width=1.0, inner="box", scale="area")
+                for (j,ccat) in enumerate(self.control_categories):
+                    axes[i][j+1].set_title(ccat)
+                    sns.violinplot(data=self.control[ccat], ax=axes[i][j+1], width=1.0, inner="box", scale="area")
+        raw_density()
+        @flush("deltaRandom_density")
+        def dRandom_density():
+            fig, axes = plt.subplots(nrows=len(self.exp_categories), ncols=len(self.control_categories)+1, sharey=True)
+            fig.set_size_inches(figuresize)
+            fig.suptitle("Differences Between Categories And Random Titles")
+            if len(self.exp_categories) == 1:
+                axes = [axes]
+            expectation = self.control['random'].apply(np.mean)
+            for (i,ecat) in enumerate(self.exp_categories):
+                axes[i][0].set_title(ecat)
+                delta = self.experimental[ecat].apply(lambda row: row - expectation, axis=1)
+                sns.violinplot(data=delta, ax=axes[i][0], width=1.0, inner="box", scale="area")
+                for (j,ccat) in enumerate(self.control_categories):
+                    axes[i][j+1].set_title(ccat)
+                    delta = self.control[ccat].apply(lambda row: row - expectation, axis=1)
+                    sns.violinplot(data=delta, ax=axes[i][j+1], width=1.0, inner="box", scale="area")
+        dRandom_density()
+        # What am I interested about with the combined thing?
+        @flush("combined_density")
+        def combined_density():
+            fig, axes = plt.subplots(nrows=len(self.exp_categories) + 1)
+            fig.set_size_inches(figuresize)
+            fig.suptitle("Differences Between Among Categories")
+            if len(self.exp_categories) == 1:
+                combined = self.experimental[list(self.exp_categories)[0]]
+            else:
+                cats = list(self.exp_categories)
+                combined = self.experimental[cats[0]].append([self.experimental[cat] for cat in cats[1:]])
+            combined_expectation = combined.apply(np.mean)
+            random_expectation = self.control['random'].apply(np.mean)
+            combined_minus_rand = combined.apply(lambda row: row - random_expectation, axis=1)
+            sns.violinplot(data=combined_minus_rand, ax=axes[0], width=1.0, inner="box", scale="area")
+            for (i,ecat) in enumerate(self.exp_categories):
+                axes[i + 1].set_title(ecat)
+                delta = self.experimental[ecat].apply(lambda row: row - combined_expectation, axis=1)
+                sns.violinplot(data=delta, ax=axes[i + 1], width=1.0, inner="box", scale="area")
+        combined_density()
+        @flush("split_random")
+        def split_random():
+            # here, I'll transform the data so it is grouped by attribute, and the plots are split compared to random.
+            pass
+        split_random()
+        # What can I try to correlate?
     def byTitle(self,title):
         ''' The reason to have this function instead of doing a SQL GROUPBY is that I'm looking for a sample of specific titles, and I'm not
             going to hardcode thousands into a query string.
