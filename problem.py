@@ -6,16 +6,12 @@ import math
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
+from bokeh import mpl
+from bokeh.plotting import output_file, show
 import scipy
 import subprocess
 
-# Really, what is the best way for me to get scalar field values?
-#   if I use a panel, I will have one extra thing to index by, which can be title. This will allow
-#   me to use title as a categorical label in seaborn plotting commands, which is what I want to do.
-#   if I go this route and it really has to be uniformly tabular (all titles available to all categories),
-#   I'll have to have missing values. I should ask on stack overflow whether I should do this or whether
-#   there is another recommended approach.
-
+# maybe this should be labeled 'wikiForward'
 class WikiProblem:
     '''
     An instance is of the form:
@@ -30,7 +26,7 @@ class WikiProblem:
     Notes on the Code:
        Execution of EngineProblem objects anticipates the database to be static as its executing.
     '''
-    def __init__(self, instance, checkSamples=True, fromData=None):
+    def __init__(self, instance, checkSamples=True, fromData=None, mask={}):
         if fromData:
             self = pickle.load(fromData)
         else:
@@ -39,10 +35,12 @@ class WikiProblem:
            self.exp_categories = {category for category in self.instance['experimental']}
            self.control_categories = {category for category in self.instance['control']} | {'random'}
            self.categories = self.exp_categories | self.control_categories
-           self.engines = {'google','bing','yahoo','wikipedia'}
+           self.engines = {'google','bing','yahoo','wikipedia','facebook','twitter'}
+           for eng in mask:
+               self.engines.remove(eng)
            # The things I'm interested in
            self.attributes = {'prop-' + eng for eng in self.engines} | {'engines/links'}
-           self.random_size = 800
+           self.random_size = 20
            self.prepare_instance()
            # This two are necessary for making the data properly tabular.
            #self.exp_titles = functools.reduce(lambda x,y: x | y, self.instance['experimental'].values())
@@ -58,7 +56,6 @@ class WikiProblem:
            self.experimental = pd.Panel(exps)
            self.control = pd.Panel(ctrls)
            self.churn()
-           self.stats()
     def __del__ (self):
         # save states and free the resources when the object gets garbage collected.
         self.cursor.close()
@@ -111,8 +108,6 @@ class WikiProblem:
             for category in self.instance[t]:
                 for title in self.instance[t][category]:
                     store(category,title,t == 'experimental')
-    def agg(self):
-        pass
     def stats(self):
         '''
         What am I interested in?
@@ -122,40 +117,59 @@ class WikiProblem:
             overall usage of engines versus links, aggregated over all categories in the experimental group.
         What single numbers would say interesting things?
         '''
-        # The notion of correlation is purposefully not defined because of the different titles in each.
-        # I think I need to do a 
+        #pd.set_option('precision',4) #effects the output precision, so that more can be displayed horizontally.
+            #weirdly, this didn't work.
+        cors = {}
         for (name,df) in self.experimental.iteritems():
             print("{}\n{}".format(name,str(df.describe())))
             corrmat = pd.DataFrame(columns=self.attributes, index=[name for (name,vals) in self.control.iteritems()])
-            print("The first item in these tuples represents: ")
-            print("The second item in these tuples represents: ")
+            print("The first item in these tuples represents the pearson correlation coefficient.\n")
+            print("The second item in these tuples represents the p-value.\n")
             for (featurename,feature) in df.iteritems():
                 for (cname,ctrl) in self.control.iteritems():
                     size = min(len(feature.dropna()),len(ctrl[featurename].dropna()))
                     featurecol, ctrlcol = (feature.dropna())[0:size], (ctrl[featurename].dropna())[0:size]
                     # does this pearson coefficient assume minus-mean form? no, what I'm writing here is valid.
                     corrmat[featurename][cname] = scipy.stats.pearsonr(featurecol.values,ctrlcol.values)
+            cors[name] = corrmat
             print(corrmat)
-        #now, we add covariance between the control groups (including random). we expect covariance with random to be about zero.
-    def cluster(self,n=2):
-        '''
-        Many instances may have in mind a binary expectation. This shows whether the data supports that estimation.
-        At the end, counts of what are in each cluster are done. The other number to try clustering about is the
-        number of categories in the experiment.
-        '''
-        pass
+        self.correlations = pd.Panel(cors)
+        # here, get the mean and variance of each column in random.
+        # Here can go some statistical tests, e.g. Kruskal-Wallis.
+    def popularityOf(self):
+        exps = pd.DataFrame(columns=self.exp_categories)
+        for ecat in self.instance['experimental']:
+            for title in self.instance['experimental'][ecat]:
+                title = title.replace("'","''") # this is the postgres escape code to allow titles with single quotes in them.
+                ns = pd.read_sql("SELECT sum(n) FROM wikithresh WHERE title = '{}' GROUP BY title".format(title), con=self.conn).iloc[0][0]
+                exps[ecat][title] = int(ns)
+        rands = pd.Series()
+        for title in self.instance['control']['random']:
+            title = title.replace("'","''") # this is the postgres escape code to allow titles with single quotes in them.
+            rands[title] = pd.read_sql("SELECT sum(n) FROM wikithresh WHERE title = '{}' GROUP BY title".format(title), con=self.conn).iloc[0][0]
     def discovery(self,categories=None):
         ''' The idea is, after discovery, I will do more specific plots to hone in on what this suggests is interesting data.
         '''
         # Now, I've kind of thought through this a bit. I can play with this interactively,
         # and add stuff here as I go.
         figuresize = (36,16) #units - inches
+        # something like this but with seaborn's sense of crayola...
+        aes = {'other-google' : 'green',
+               'other-wikipedia' : 'black',
+               'other-facebook' : 'white',
+               'other-twitter' : 'blue',
+               'other-yahoo' : 'yellow',
+               'other-bing' : 'red',
+               'engines/links' : 'purple'}
         def flush(plottype):
             def inner(plotfn):
                 def wrap():
                     plotfn()
+                    # add a legend to the figure.
                     plt.savefig("results/{}/{}".format(self.instance['name'], plottype))
+                    #output_file("results/{}/{}.html".format(self.instance['name'], plottype))
                     plt.show()
+                    #show(mpl.to_bokeh())
                 return wrap
             return inner
          #There is a notion of 'figure' for each of these.
@@ -181,7 +195,7 @@ class WikiProblem:
         def dRandom_density():
             fig, axes = plt.subplots(nrows=len(self.exp_categories), ncols=len(self.control_categories)+1, sharey=True)
             fig.set_size_inches(figuresize)
-            fig.suptitle("Differences Between Categories And Random Titles")
+            fig.suptitle("Differences Between Categories And Random Sampling")
             if len(self.exp_categories) == 1:
                 axes = [axes]
             expectation = self.control['random'].apply(np.mean)
@@ -199,7 +213,7 @@ class WikiProblem:
         def combined_density():
             fig, axes = plt.subplots(nrows=len(self.exp_categories) + 1)
             fig.set_size_inches(figuresize)
-            fig.suptitle("Differences Between Among Categories")
+            fig.suptitle("Differences Between Categories and Combined Experimental Categories")
             if len(self.exp_categories) == 1:
                 combined = self.experimental[list(self.exp_categories)[0]]
             else:
@@ -219,7 +233,23 @@ class WikiProblem:
             # here, I'll transform the data so it is grouped by attribute, and the plots are split compared to random.
             pass
         split_random()
-        # What can I try to correlate?
+        # some bokeh plots go here. what else do I want to highlight? things about the correlation? things about the clustering?
+        # something like http://bokeh.pydata.org/en/latest/docs/gallery/iris.html for clustering.
+        # what correlates with what could be a heatmap.
+        @flush("correlation")
+        def corr_heat():
+            # can I do a panel-based row of heatmaps with a single line of seaborn code? if not ...
+            fig, axes = plt.subplots(nrows=len(self.experimental))
+            fig.suptitle("Correlations")
+            if len(self.experimental) == 1: axes = [axes]
+            i = 0
+            for (ecat, df) in self.correlations.iteritems():
+                axes[i].set_title(ecat)
+                # for now, just plotting correlation coefficients
+                sns.heatmap(data=df.applymap(lambda x:x[0]),ax=axes[i])
+                i += 1
+        corr_heat()
+        # holy shit, there is a function: `show(mpl.to_bokeh)` that will allow me the zoom thing, perfect for my discovery thing.
     def byTitle(self,title):
         ''' The reason to have this function instead of doing a SQL GROUPBY is that I'm looking for a sample of specific titles, and I'm not
             going to hardcode thousands into a query string.
@@ -265,27 +295,17 @@ class WikiProblem:
             print("Failed to read random sample from table: " ++ repr(e))
             return None
 
-# plans
-# Rethinking Visualization:
-  # - replace the scatter plot with a 'stripplot'.
-  # - remove the explicit ggplot styling; use matplotlib instead.
-  # - keep the rest of what I have, except maybe using a 'distplot' rather than a histogram would be more consise. This would allow me to avoid the explicit fitting, and to also add rugs if that would be helpful.
-  # - add violin plots which show the same thing as the histograms.
-  # - play around with different pallettes.
-  # - how does one target a subplot with seaborn?
-
-  # questions
-  # - maybe there is a higher-level way to do the merge?
-  # - what kinds of plots go well with attempts at clustering?
-
-# Rethinking data model:
-  # - Currently, there are a few distinct dataframes, some of which have dicts as their cell values. Maybe there ought to be a single frame,
-  #   and the things I'm curious about it can be methods of the class which observe that single frame. This single frame can have more
-  #   attributes instead of having dict bodies.
-  # - An idea - a row per search engine, instead of a dict.
-# Improving performance:
-  # - Once I have already rethought the data model, I can consider rethinking the SQL queries that will populate it. 
-# This raw matplotlib versus seaborn thing is a good match for having branches.
+# after I work out what all needs to go here, I can make a superclass with the shared things.
+class wikiBackward():
+    def __init__(self,mask):
+        pass
+    def cluster(self,dims):
+        pass
+    def separate(self,dims):
+        pass
+    # just to see how well it does with its separated thing.
+    def predict(self,title):
+        pass
 
 # other helper functions
 def most_like(phrase,thresh=0.3):
@@ -307,8 +327,6 @@ def dbshape(conn):
     num_titles = self.cursor.fetchall()[0][0]
     return (num_rows,num_titles)
 
-def proportion(referer):
-    return "(SELECT wIn.n :: float / sum(wOut.n) FROM wikithresh wIn WHERE (wIn.title = wOut.title) AND (wIn.referer = '{}'))".format(referer)
 # this is interesting just to see what is most done.
 def referer_maximal(takeAmount=100):
    "Retrieves the pages which are most often found via certain referers. Research question - do these have anything in common?"
@@ -335,13 +353,35 @@ def referer_distribution(slice_proportion=0.01):
         '''.format(proportion(referer),slice_proportion), conn)
    return {referer : distr(referer) for referer in ('other-google','other-bing','other-yahoo','other-wikipedia')}
 
-#Is there a name for something like a histogram, but which has constant count height and variable 'width'?
-#if so, I could use that as an alternative way to pose the popularity instance.
-# just plot a histogram with the data reversed; what do I want to do this to?
-#       number of net views is in a bin, the width corresponds to views per page boundaries.
-#       
-# def data_characteristics( ):
-#     m = referer_maximal(800)
-#     d = referer_distribution( )
-#     m.to_string
-#     plt.hist
+def pageview_distribution(proportion=0.08):
+    conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
+    distr = pd.read_sql('''SELECT title, sum(n)
+                           FROM wikiThresh
+                           WHERE random() < {}
+                           GROUP BY title
+                           ORDER BY sum(n) DESC'''.format(proportion), conn)
+    nbins = 100
+    fig, (ax1,ax2) = plt.subplots(nrows=2)
+    sns.distplot(distr['sum'], bins=nbins, ax=ax1)
+    sns.distplot(distr['sum'].apply(math.log), bins=nbins, ax=ax2)
+    plt.show()
+# plans:
+#   rename wikithresh to wikithresh-jan
+#   rename wikilog to wiki-jan.
+#   get february data, name it wiki-feb
+#   make table wikithresh-feb
+#     after all this, do another database recreate dump script. 
+#   I actually have a mystery on my hands. 
+
+def data_characteristics( ):
+    pageview_distribution()
+    for referer in referer_maximal(30):
+        print(referer)
+    for referer in referer_distribution():
+        print(referer)
+    random_inst = {
+            'name' : 'random_sample',
+            'experimental' : {},
+            'control' : {}}
+    rp = WikiProblem(random_inst)
+    rp.control['experimental'].describe()

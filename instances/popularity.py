@@ -14,19 +14,37 @@ def popSample (num_samples=7,partition='quantile',thresh=80):
    if partition == 'quantile':
        return np.array_split(sample,num_samples)
    elif partition == 'even':
-       return
+       view_block = np.sum(sample['sum'].values) / num_samples
+       count, parts = 0, [ {} for i in range(num_samples)]
+       for (agged_title,views) in sample: #this relies on the sorted order
+           count += views
+           parts[count % view_block].add(agged_title)
+       return parts
    else:
        print("unimplemented")
 
 quantiles = popSample(num_samples=5,partition='quantile')
 quantile_inst = { #do people click towards more obscure or less obscure things?
-   'name' : 'popularity flow',
+   'name' : 'popularity quantiles',
    'experimental' : {
-      '0 quantile' :  set(quantile[0]['title']),
-      '20 quantile' : set(quantile[1]['title']),
-      '40 quantile' : set(quantile[2]['title']),
-      '60 quantile' : set(quantile[3]['title']),
-      '80 quantile' : set(quantile[4]['title']),
+      '0 quantile' :  set(quantiles[0]['title']),
+      '.2 quantile' : set(quantiles[1]['title']),
+      '.4 quantile' : set(quantiles[2]['title']),
+      '.6 quantile' : set(quantiles[3]['title']),
+      '.8 quantile' : set(quantiles[4]['title']),
+   },
+   'control' : { }
+}
+
+evens = popSample(num_samples=5,partition='even')
+even_inst = {
+   'name' : 'popularity quantiles',
+   'experimental' : {
+      '1' : evens[0],
+      '2' : evens[1],
+      '3' : evens[2],
+      '4' : evens[3],
+      '5' : evens[4]
    },
    'control' : { }
 }
