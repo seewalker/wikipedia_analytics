@@ -60,11 +60,8 @@ class WikiProblem:
         # save states and free the resources when the object gets garbage collected.
         self.cursor.close()
         self.conn.close()
-        del(self.conn)
-        del(self.cursor) # delete these because they may carry password info that I don't want to pickle.
         name = self.instance['name']
-        pickle.dump(self, open('results/{}/self.pickel'.format(name), 'wb'))
-        self.experimental.to_hdf('results/{}/experimental.hdf'.format(name))
+        #self.experimental.to_hdf('results/{}/experimental.hdf'.format(name))
         self.experimental.to_pickle('results/{}/experimental.pickel'.format(name))
     def prepare_instance(self):
         '''
@@ -147,11 +144,17 @@ class WikiProblem:
         for title in self.instance['control']['random']:
             title = title.replace("'","''") # this is the postgres escape code to allow titles with single quotes in them.
             rands[title] = pd.read_sql("SELECT sum(n) FROM wikithresh WHERE title = '{}' GROUP BY title".format(title), con=self.conn).iloc[0][0]
+        fig, axes = plt.subplots(nrows=len(self.exp_categories))
+        if len(self.exp_categories) == 1: axes = [axes]
+        for (i,ecat) in enumerate(self.exp_categories):
+            sns.distplot(exps[ecat], ax=axes[i])
+            sns.distplot(rands, ax=axes[i], color='r')
+        plt.show()
     def discovery(self,categories=None):
         ''' The idea is, after discovery, I will do more specific plots to hone in on what this suggests is interesting data.
         '''
-        # Now, I've kind of thought through this a bit. I can play with this interactively,
-        # and add stuff here as I go.
+        self.stats()
+        # actually, this should be adjusted to the number of parameters of the problem.
         figuresize = (36,16) #units - inches
         # something like this but with seaborn's sense of crayola...
         aes = {'other-google' : 'green',
@@ -331,6 +334,9 @@ def dbshape(conn):
 def referer_maximal(takeAmount=100):
    "Retrieves the pages which are most often found via certain referers. Research question - do these have anything in common?"
    conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
+   # does the notion of proportion require a subquery?
+   def proportion(referer):
+       return "n"
    def maxes(referer):
        return pd.read_sql(''' SELECT wOut.title, {0}
                               FROM wikiThresh wOut
@@ -339,19 +345,6 @@ def referer_maximal(takeAmount=100):
                               LIMIT {1}
                           '''.format(proportion(referer),takeAmount), conn)
    return {referer : maxes(referer) for referer in ('other-google','other-bing','other-yahoo','other-wikipedia')}
-
-def referer_distribution(slice_proportion=0.01):
-   "Shows the distribution of proportion of prevalence of referers."
-   conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
-   def distr(referer):
-        # Does seaborn provide a way to make histograms where you can click on the bins to see what members there are?
-        return pd.read_sql('''SELECT {0}
-                              FROM wikiThresh wOut
-                              WHERE random() < {1}
-                              GROUP BY wOut.title
-                              ORDER BY {0} DESC
-        '''.format(proportion(referer),slice_proportion), conn)
-   return {referer : distr(referer) for referer in ('other-google','other-bing','other-yahoo','other-wikipedia')}
 
 def pageview_distribution(proportion=0.08):
     conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
@@ -375,13 +368,11 @@ def pageview_distribution(proportion=0.08):
 
 def data_characteristics( ):
     pageview_distribution()
-    for referer in referer_maximal(30):
-        print(referer)
-    for referer in referer_distribution():
-        print(referer)
+    #for referer in referer_maximal(30):
+    #    print(referer)
     random_inst = {
             'name' : 'random_sample',
             'experimental' : {},
             'control' : {}}
     rp = WikiProblem(random_inst)
-    rp.control['experimental'].describe()
+    print(rp.control['random'].describe())
