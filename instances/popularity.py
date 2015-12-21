@@ -11,15 +11,15 @@ def popSample (num_samples=7,partition='quantile',thresh=80):
                            GROUP BY title
                            HAVING sum(n) > {}
                            ORDER BY sum(n) DESC
-                        '''.format(0.00001,thresh), conn)
+                        '''.format(0.01,thresh), conn)
    if partition == 'quantile':
        return np.array_split(sample,num_samples)
    elif partition == 'even':
        view_block = math.ceil(np.sum(sample['sum'].values) / num_samples)
        count, parts = 0, [ set() for i in range(num_samples)]
        for (i, (views,agged_title)) in sample.iterrows(): #this relies on the sorted order
-           count += views
            parts[math.floor(count / view_block)].add(agged_title)
+           count += views
        return parts
    else:
        print("unimplemented")

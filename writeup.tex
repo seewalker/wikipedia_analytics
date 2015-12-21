@@ -11,6 +11,8 @@
 
 \maketitle
 
+The aggregated wikipedia clickstream is public information. It is fairly straightforward to mine 
+
 The software infrastructure of my big data project takes as an instance a \texttt{(referer int, page\_id int, pairwise\_views int, referer\_name varchar, page\_name varchar, type varchar)} relation and set of labeled (either experimental group or control group) categories, each of which has a set of titles which are represented as a \texttt{page\_name} in the relation. The user does not manually specify random selection as a control group category; that is done automatically. From such an instance, a solution is computed (on the $10^1$ second timescale) which contains the table in \cref{tab:struct}, along with useful reductions of that table. Although the 3.1 GB tab-seperated-value file released by wikipedia fits the shape of my problem, I manifested it in postgres for query-ability and filtered out titles for which the sum of views coming from all referers is less than 300. The idea behind the filtering is that low-view proportions will be more noisy, e.g. an unpopular page might happen to be found via yahoo three times and not via google, but it’s the same person doing it three times and it doesn’t reflect on google vs yahoo much.
 
 \begin{table}[H]

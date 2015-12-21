@@ -1,15 +1,22 @@
 from __future__ import division
-import psycopg2
-import pandas as pd
-import numpy as np
 import math
 import pickle
+import subprocess
+import itertools
+import numpy as np
+import scipy
+import psycopg2
+import pandas as pd
+from sklearn.cluster import KMeans
+from sklearn.linear_model import LogisticRegression
+from sklearn import gaussian_process
 import matplotlib.pyplot as plt
 import seaborn as sns
 from bokeh import mpl
 from bokeh.plotting import output_file, show
-import scipy
-import subprocess
+
+# some global variables
+ENGINES = {'google','bing','yahoo','wikipedia','facebook','twitter'}
 
 # maybe this should be labeled 'wikiForward'
 class WikiProblem:
@@ -26,7 +33,7 @@ class WikiProblem:
     Notes on the Code:
        Execution of EngineProblem objects anticipates the database to be static as its executing.
     '''
-    def __init__(self, instance, checkSamples=True, fromData=None, mask={}):
+    def __init__(self, instance, checkSamples=True, fromData=None, selection=ENGINES):
         if fromData:
             self = pickle.load(fromData)
         else:
@@ -35,12 +42,10 @@ class WikiProblem:
            self.exp_categories = {category for category in self.instance['experimental']}
            self.control_categories = {category for category in self.instance['control']} | {'random'}
            self.categories = self.exp_categories | self.control_categories
-           self.engines = {'google','bing','yahoo','wikipedia','facebook','twitter'}
-           for eng in mask:
-               self.engines.remove(eng)
+           self.engines = selection - {'engines/links'}
            # The things I'm interested in
-           self.attributes = {'prop-' + eng for eng in self.engines} | {'engines/links'}
-           self.random_size = 20
+           self.attributes = selection
+           self.random_size = 500
            self.prepare_instance()
            # This two are necessary for making the data properly tabular.
            #self.exp_titles = functools.reduce(lambda x,y: x | y, self.instance['experimental'].values())
@@ -99,8 +104,9 @@ class WikiProblem:
             if experimental: table = self.experimental
             else: table = self.control
             for eng in self.engines:
-                table[category]['prop-' + eng][title] = props[eng]
-            table.ix[category]['engines/links'][title] = self.enginesVsLinks(self.byTitle(title))
+                table[category][eng][title] = props[eng]
+            if 'engines/links' in self.attributes:
+                table.ix[category]['engines/links'][title] = self.enginesVsLinks(self.byTitle(title))
         for t in ('experimental','control'):
             for category in self.instance[t]:
                 for title in self.instance[t][category]:
@@ -147,8 +153,8 @@ class WikiProblem:
         fig, axes = plt.subplots(nrows=len(self.exp_categories))
         if len(self.exp_categories) == 1: axes = [axes]
         for (i,ecat) in enumerate(self.exp_categories):
-            sns.distplot(exps[ecat], ax=axes[i])
-            sns.distplot(rands, ax=axes[i], color='r')
+            sns.distplot(exps[ecat].apply(lambda x: math.log(x)), ax=axes[i])
+            sns.distplot(rands.apply(lambda x: math.log(x)), ax=axes[i], color='r')
         plt.show()
     def discovery(self,categories=None):
         ''' The idea is, after discovery, I will do more specific plots to hone in on what this suggests is interesting data.
@@ -184,6 +190,7 @@ class WikiProblem:
             fig, axes = plt.subplots(nrows=len(self.exp_categories), ncols=len(self.control_categories)+1, sharey=True)
             fig.set_size_inches(figuresize)
             fig.suptitle("Raw Proportion Values")
+            sns.set_style("ticks",{"ytick.major.style" : 0.1, "ytick.minor.style" : 0.025})
             # Things I need - better styling.
             if len(self.exp_categories) == 1:
                 axes = [axes]
@@ -199,6 +206,7 @@ class WikiProblem:
             fig, axes = plt.subplots(nrows=len(self.exp_categories), ncols=len(self.control_categories)+1, sharey=True)
             fig.set_size_inches(figuresize)
             fig.suptitle("Differences Between Categories And Random Sampling")
+            sns.set_style("ticks",{"ytick.major.style" : 0.04, "ytick.minor.style" : 0.01})
             if len(self.exp_categories) == 1:
                 axes = [axes]
             expectation = self.control['random'].apply(np.mean)
@@ -253,6 +261,34 @@ class WikiProblem:
                 i += 1
         corr_heat()
         # holy shit, there is a function: `show(mpl.to_bokeh)` that will allow me the zoom thing, perfect for my discovery thing.
+    def ml(self):
+        "What happens when various machine learning methods are applied?"
+        # this could be looped over 'itertools.pairwise' as a generator.
+        cluster() # it may make sense to do 2d or 3d stuff. the user says what they are interested in.
+        separate()
+        # here goes a bokeh scatter plot of clustered stuff because I get hover labels.
+        # here will go gaussian process for classification.
+        # here will go simple logistic regression.
+    def cluster(self,cats,dims,n):
+        assert(set(cats).issubset(self.exp_categories) and (len(dims) > 1) and set(dims).issubset(self.attributes))
+        self.km = sklearn.cluster.KMeans(n_clusters=n)
+        if len(cats) > 1:
+            df = self.experimental[cats[0]].append([self.experimental[cat] for cat in cats[1:]]).dropna()
+        else:
+            df = self.experimental[cats[0]]
+        self.km.fit(df[list(dims)])
+    def separate(self):
+        dfs, y = [], []
+        cats = list(self.exp_categories)
+        for cat in cats:
+            X = self.experimental[cat].dropna().copy()
+            dfs.append(X)
+            y += [cat for i in range(len(X.major_axis))]
+        self.svm = SVC()
+        self.svm.fit(dfs[0].append(dfs[1:]), y)
+    # todo - add gaussian processes and a probabilistic output classifiers.
+    def predict(self):
+        pass
     def byTitle(self,title):
         ''' The reason to have this function instead of doing a SQL GROUPBY is that I'm looking for a sample of specific titles, and I'm not
             going to hardcode thousands into a query string.
@@ -298,18 +334,6 @@ class WikiProblem:
             print("Failed to read random sample from table: " ++ repr(e))
             return None
 
-# after I work out what all needs to go here, I can make a superclass with the shared things.
-class wikiBackward():
-    def __init__(self,mask):
-        pass
-    def cluster(self,dims):
-        pass
-    def separate(self,dims):
-        pass
-    # just to see how well it does with its separated thing.
-    def predict(self,title):
-        pass
-
 # other helper functions
 def most_like(phrase,thresh=0.3):
    conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
@@ -336,40 +360,37 @@ def referer_maximal(takeAmount=100):
    conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
    # does the notion of proportion require a subquery?
    def proportion(referer):
-       return "n"
+       return "((SELECT wIn.n FROM sample wIn WHERE (wIn.title = wOut.title) AND (wIn.referer = '{}')) / (sum(wOut.n) :: Float))".format(referer)
    def maxes(referer):
+       print("doing on of em.")
        return pd.read_sql(''' SELECT wOut.title, {0}
-                              FROM wikiThresh wOut
+                              FROM sample wOut
+                              WHERE (SELECT wIn.n FROM sample wIn WHERE (wIn.title = wOut.title) AND (wIn.referer = '{2}')) IS NOT NULL
                               GROUP BY wOut.title
                               ORDER BY {0} DESC
                               LIMIT {1}
-                          '''.format(proportion(referer),takeAmount), conn)
-   return {referer : maxes(referer) for referer in ('other-google','other-bing','other-yahoo','other-wikipedia')}
+                          '''.format(proportion(referer),takeAmount,referer), conn)
+   xs = maxes('other-google')
+   return {referer : maxes(referer) for referer in map(lambda x: 'other-' + x, ENGINES)}
 
-def pageview_distribution(proportion=0.08):
+def pageview_distribution(proportion=0.08,nbins=100):
     conn = psycopg2.connect(dbname="wiki", user="shalom", host="localhost", password="")
     distr = pd.read_sql('''SELECT title, sum(n)
                            FROM wikiThresh
                            WHERE random() < {}
                            GROUP BY title
                            ORDER BY sum(n) DESC'''.format(proportion), conn)
-    nbins = 100
     fig, (ax1,ax2) = plt.subplots(nrows=2)
     sns.distplot(distr['sum'], bins=nbins, ax=ax1)
     sns.distplot(distr['sum'].apply(math.log), bins=nbins, ax=ax2)
     plt.show()
-# plans:
-#   rename wikithresh to wikithresh-jan
-#   rename wikilog to wiki-jan.
-#   get february data, name it wiki-feb
-#   make table wikithresh-feb
-#     after all this, do another database recreate dump script. 
-#   I actually have a mystery on my hands. 
 
 def data_characteristics( ):
+    maxes = referer_maximal(30)
+    for (referer,df) in maxes.items():
+        print(referer)
+        print(df)
     pageview_distribution()
-    #for referer in referer_maximal(30):
-    #    print(referer)
     random_inst = {
             'name' : 'random_sample',
             'experimental' : {},
