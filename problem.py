@@ -126,6 +126,7 @@ class WikiProblem:
         for (name,df) in self.experimental.iteritems():
             print("{}\n{}".format(name,str(df.describe())))
             corrmat = pd.DataFrame(columns=self.attributes, index=[name for (name,vals) in self.control.iteritems()])
+            pd.set_option('precision',3)
             print("The first item in these tuples represents the pearson correlation coefficient.\n")
             print("The second item in these tuples represents the p-value.\n")
             for (featurename,feature) in df.iteritems():
@@ -140,6 +141,9 @@ class WikiProblem:
         # here, get the mean and variance of each column in random.
         # Here can go some statistical tests, e.g. Kruskal-Wallis.
     def popularityOf(self):
+        '''
+        Visualizes popularity of pages in experimental categories in general.
+        '''
         exps = pd.DataFrame(columns=self.exp_categories)
         for ecat in self.instance['experimental']:
             for title in self.instance['experimental'][ecat]:
@@ -160,9 +164,7 @@ class WikiProblem:
         ''' The idea is, after discovery, I will do more specific plots to hone in on what this suggests is interesting data.
         '''
         self.stats()
-        # actually, this should be adjusted to the number of parameters of the problem.
         figuresize = (36,16) #units - inches
-        # something like this but with seaborn's sense of crayola...
         aes = {'other-google' : 'green',
                'other-wikipedia' : 'black',
                'other-facebook' : 'white',
@@ -263,12 +265,8 @@ class WikiProblem:
         # holy shit, there is a function: `show(mpl.to_bokeh)` that will allow me the zoom thing, perfect for my discovery thing.
     def ml(self):
         "What happens when various machine learning methods are applied?"
-        # this could be looped over 'itertools.pairwise' as a generator.
-        cluster() # it may make sense to do 2d or 3d stuff. the user says what they are interested in.
+        cluster()
         separate()
-        # here goes a bokeh scatter plot of clustered stuff because I get hover labels.
-        # here will go gaussian process for classification.
-        # here will go simple logistic regression.
     def cluster(self,cats,dims,n):
         assert(set(cats).issubset(self.exp_categories) and (len(dims) > 1) and set(dims).issubset(self.attributes))
         self.km = sklearn.cluster.KMeans(n_clusters=n)
@@ -344,15 +342,6 @@ def most_like(phrase,thresh=0.3):
                          ORDER BY similarity('{0}',filtered.title) DESC
                       '''.format(phrase, lower, upper, thresh), conn)
    print(hits.to_string())
-
-# not verified to work.
-def dbshape(conn):
-    cursor = conn.cursor()
-    cursor.execute("SELECT count(*) FROM wikiThresh")
-    num_rows = self.cursor.fetchall()[0][0]
-    cursor.execute("SELECT count(DISTINCT title) FROM wikithresh")
-    num_titles = self.cursor.fetchall()[0][0]
-    return (num_rows,num_titles)
 
 # this is interesting just to see what is most done.
 def referer_maximal(takeAmount=100):
